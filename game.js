@@ -1,3 +1,6 @@
+window._gs = () => gameState;
+window._me = () => gameState.players[myId];
+window._socket = socket;
 
 const DEV_USERNAMES = ['Eddie', 'Mingau', 'SeuNomeAqui'];
 const ARTIST_USERNAMES = ['Harley'];

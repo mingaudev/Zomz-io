@@ -2836,6 +2836,10 @@ discordClient.on('interactionCreate', async (interaction) => {
 });
 
 console.log('Tentando logar o bot...');
-discordClient.login(BOT_TOKEN);
+discordClient.login(BOT_TOKEN).then(() => {
+    console.log('Login do bot bem-sucedido.');
+}).catch((error) => {
+    console.error('Erro ao logar o bot:', error);
+});
 
 });

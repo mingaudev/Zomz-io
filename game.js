@@ -252,7 +252,7 @@ window.addEventListener('keydown', function(event) {
                 } else if (me.role === 'human') {
                     const atmObject = gameState.objects.find(item => item.id === 'atm');
                     let isNearATM = false;
-                    if (atmObject) {
+                    if (atmObject) { //a
                         const dx = (me.x + me.width / 2) - (atmObject.x + atmObject.width / 2);
                         const dy = (me.y + me.height / 2) - (atmObject.y + atmObject.height / 2);
                         const distance = Math.sqrt(dx * dx + dy * dy);

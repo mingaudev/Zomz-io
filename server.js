@@ -2701,6 +2701,10 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const VERIFIED_ROLE_ID = process.env.VERIFIED_ROLE_ID;
 const STAFF_ROLE_ID = process.env.STAFF_ROLE_ID;
 
+console.log('BOT_TOKEN definido:', !!BOT_TOKEN);
+console.log('VERIFIED_ROLE_ID definido:', !!VERIFIED_ROLE_ID);
+console.log('STAFF_ROLE_ID definido:', !!STAFF_ROLE_ID);
+
 const discordClient = new Client({ intents: [GatewayIntentBits.Guilds] });
 const verifiedUsers = new Map();
 
@@ -2712,6 +2716,10 @@ discordClient.once('ready', async () => {
         .setDescription('Faça login com sua conta do Infestation');
 
     await discordClient.application.commands.set([command]);
+});
+
+discordClient.on('error', (error) => {
+    console.error('Erro no bot Discord:', error);
 });
 
 discordClient.on('interactionCreate', async (interaction) => {
@@ -2826,5 +2834,8 @@ discordClient.on('interactionCreate', async (interaction) => {
         await interaction.reply({ embeds: [embed], ephemeral: true });
     }
 });
+
+console.log('Tentando logar o bot...');
+discordClient.login(BOT_TOKEN);
 
 });

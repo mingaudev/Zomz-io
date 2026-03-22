@@ -2705,7 +2705,14 @@ console.log('BOT_TOKEN definido:', !!BOT_TOKEN);
 console.log('VERIFIED_ROLE_ID definido:', !!VERIFIED_ROLE_ID);
 console.log('STAFF_ROLE_ID definido:', !!STAFF_ROLE_ID);
 
-const discordClient = new Client({ intents: [GatewayIntentBits.Guilds] });
+const discordClient = new Client({ 
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildVoiceStates
+    ] 
+});
 const verifiedUsers = new Map();
 
 discordClient.once('ready', async () => {
@@ -2715,11 +2722,24 @@ discordClient.once('ready', async () => {
         .setName('login')
         .setDescription('Faça login com sua conta do Infestation');
 
-    await discordClient.application.commands.set([command]);
+    try {
+        await discordClient.application.commands.set([command]);
+        console.log('Comando slash /login registrado com sucesso.');
+    } catch (error) {
+        console.error('Erro ao registrar comando slash:', error);
+    }
 });
 
 discordClient.on('error', (error) => {
     console.error('Erro no bot Discord:', error);
+});
+
+discordClient.on('shardError', (error) => {
+    console.error('Erro no shard do Discord:', error);
+});
+
+discordClient.on('disconnect', () => {
+    console.warn('Bot Discord desconectado.');
 });
 
 discordClient.on('interactionCreate', async (interaction) => {
@@ -2835,11 +2855,15 @@ discordClient.on('interactionCreate', async (interaction) => {
     }
 });
 
-console.log('Tentando logar o bot...');
-discordClient.login(BOT_TOKEN).then(() => {
-    console.log('Login do bot bem-sucedido.');
-}).catch((error) => {
-    console.error('Erro ao logar o bot:', error);
-});
+console.log('Tentando logar o bot com token:', BOT_TOKEN ? '✓' : '✗');
+if (!BOT_TOKEN) {
+    console.error('❌ BOT_TOKEN não está definido! O bot não pode logar.');
+} else {
+    discordClient.login(BOT_TOKEN).then(() => {
+        console.log('✅ Login do bot bem-sucedido.');
+    }).catch((error) => {
+        console.error('❌ Erro ao logar o bot:', error.message);
+    });
+}
 
 });

@@ -2904,8 +2904,12 @@ discordClient.on('messageCreate', async (message) => {
             return message.reply({ embeds: [embed] });
         }
         case 'gems': {
-            const username = message.author.username;
-            const profile = users[username];
+            const verifiedUsername = verifiedUsers.get(message.author.id);
+            if (!verifiedUsername) {
+                const embed = createPrikitoEmbed('💎 Suas Gems', 'Você não está logado. Use `/login` primeiro.');
+                return message.reply({ embeds: [embed] });
+            }
+            const profile = users[verifiedUsername];
             const gems = profile ? (profile.gems || 0) : 0;
             const embed = createPrikitoEmbed('💎 Suas Gems', `Você tem **${gems}** gems.`);
             return message.reply({ embeds: [embed] });
@@ -2919,16 +2923,20 @@ discordClient.on('messageCreate', async (message) => {
             return message.reply({ embeds: [embed] });
         }
         case 'buy': {
+            const verifiedUsername = verifiedUsers.get(message.author.id);
+            if (!verifiedUsername) {
+                const embed = createPrikitoEmbed('❌ Não autenticado', 'Você não está logado. Use `/login` primeiro.');
+                return message.reply({ embeds: [embed] });
+            }
             const itemName = args.join(' ').toLowerCase();
             const item = SHOP_ITEMS.find(i => i.name.toLowerCase() === itemName);
             if (!item) {
                 const embed = createPrikitoEmbed('❌ Item não encontrado', `Use ${COMMAND_PREFIX}shop para ver itens disponíveis.`);
                 return message.reply({ embeds: [embed] });
             }
-            const username = message.author.username;
-            const profile = users[username];
+            const profile = users[verifiedUsername];
             if (!profile) {
-                const embed = createPrikitoEmbed('❌ Perfil não encontrado', 'Faça login primeiro.');
+                const embed = createPrikitoEmbed('❌ Perfil não encontrado', 'Erro ao carregar perfil do jogo.');
                 return message.reply({ embeds: [embed] });
             }
             const gems = profile.gems || 0;
@@ -2938,7 +2946,7 @@ discordClient.on('messageCreate', async (message) => {
             }
             // Deduzir gems
             profile.gems -= item.price;
-            saveAllUsers();
+            await saveAllUsers();
             // Adicionar cargo
             try {
                 const member = await message.guild.members.fetch(message.author.id);

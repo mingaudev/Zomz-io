@@ -2773,7 +2773,7 @@ console.log('VERIFIED_ROLE_ID definido:', VERIFIED_ROLE_ID);
 // Loja de Cargos
 const SHOP_ITEMS = [
     { name: 'VIP', price: 500, roleId: '1495883287527292988', description: 'Acesso a canais VIP e benefícios exclusivos.  ID para compra: 1495883287527292988' },
-    { name: 'Premium', price: 1000, roleId: '1495883596483924070', description: 'Cargos premium com perks avançados.  ID para compra: 1495883596483924070' },}
+    { name: 'Premium', price: 1000, roleId: '1495883596483924070', description: 'Cargos premium com perks avançados.  ID para compra: 1495883596483924070' }
 ];
 
 // Inicializar Firebase

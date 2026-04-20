@@ -3,6 +3,7 @@ const { Client, GatewayIntentBits, SlashCommandBuilder, ModalBuilder, TextInputB
 const DEV_USERNAMES = ['Eddie', 'Mingau', 'SeuNomeAqui'];
 const ARTIST_USERNAMES = ['Harley'];
 const nodemailer = require('nodemailer');
+const admin = require('firebase-admin');
 
 const express = require('express');
 const http = require('http');
@@ -39,7 +40,6 @@ let users = {};
 let sockets = {};
 let messages = {};
 let links = [];
-let ticketQueue = [];
 
 if (fs.existsSync(USERS_FILE)) users = fs.readJsonSync(USERS_FILE);
 if (fs.existsSync(MESSAGES_FILE)) messages = fs.readJsonSync(MESSAGES_FILE);
@@ -61,6 +61,54 @@ function saveLinks() {
     fs.writeJsonSync(LINKS_FILE, links, {
         spaces: 2
     });
+}
+
+// Funções Firebase
+async function saveToFirebase(collection, docId, data) {
+    if (!admin.apps.length) return;
+    try {
+        await admin.firestore().collection(collection).doc(docId).set(data);
+        console.log(`Dados salvos no Firebase: ${collection}/${docId}`);
+    } catch (error) {
+        console.error('Erro ao salvar no Firebase:', error);
+    }
+}
+
+async function loadFromFirebase(collection, docId) {
+    if (!admin.apps.length) return null;
+    try {
+        const doc = await admin.firestore().collection(collection).doc(docId).get();
+        return doc.exists ? doc.data() : null;
+    } catch (error) {
+        console.error('Erro ao carregar do Firebase:', error);
+        return null;
+    }
+}
+
+async function saveGameState() {
+    await saveToFirebase('gameData', 'gameState', gameState);
+    saveUsers(); // Também salvar localmente
+}
+
+async function loadGameState() {
+    const data = await loadFromFirebase('gameData', 'gameState');
+    if (data) {
+        Object.assign(gameState, data);
+        console.log('GameState carregado do Firebase.');
+    }
+}
+
+async function saveAllUsers() {
+    await saveToFirebase('gameData', 'users', users);
+    saveUsers(); // Local
+}
+
+async function loadAllUsers() {
+    const data = await loadFromFirebase('gameData', 'users');
+    if (data) {
+        Object.assign(users, data);
+        console.log('Users carregados do Firebase.');
+    }
 }
 
 function generateID() {
@@ -2690,30 +2738,73 @@ function startNewRound() {
     }
 }
 
-server.listen(PORT, () => {
-    initializeGame();
-    console.log(`🚀 Game server running at http://localhost:${PORT}`);
+server.listen(PORT, async () => {
+    await loadAllUsers();
+    await loadGameState();
+    initializeGame();
+    console.log(`🚀 Game server running at http://localhost:${PORT}`);
+
+    // Adicione após o server.listen:
+setInterval(async () => {
+    await saveGameState();
+}, 5 * 60 * 1000); // Salva a cada 5 minutos
 // ======================================
 // BOT DO DISCORD
 // ======================================
 // ✅ CORRETO:
+const BOT_NAME = 'Prikito';
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const VERIFIED_ROLE_ID = process.env.VERIFIED_ROLE_ID;
-const STAFF_ROLE_ID = process.env.STAFF_ROLE_ID;
+const VERIFIED_ROLE_ID = '1495809256488702112';
+const COMMAND_PREFIX = 'p.';
 
 console.log('BOT_TOKEN definido:', !!BOT_TOKEN);
-console.log('VERIFIED_ROLE_ID definido:', !!VERIFIED_ROLE_ID);
-console.log('STAFF_ROLE_ID definido:', !!STAFF_ROLE_ID);
+console.log('VERIFIED_ROLE_ID definido:', VERIFIED_ROLE_ID);
+
+// Loja de Cargos
+const SHOP_ITEMS = [
+    { name: 'VIP', price: 500, roleId: '1495809256488702113', description: 'Acesso a canais VIP e benefícios exclusivos.' },
+    { name: 'Premium', price: 1000, roleId: '1495809256488702114', description: 'Cargos premium com perks avançados.' },
+    { name: 'Elite', price: 2000, roleId: '1495809256488702115', description: 'Status elite com vantagens máximas.' }
+];
+
+// Inicializar Firebase
+if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+    });
+    console.log('Firebase inicializado com sucesso.');
+} else {
+    console.warn('FIREBASE_SERVICE_ACCOUNT_KEY não definido. Firebase não será usado.');
+}
 
 const discordClient = new Client({ 
     intents: [
         GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
         GatewayIntentBits.DirectMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildVoiceStates
     ] 
 });
 const verifiedUsers = new Map();
+
+function createPrikitoEmbed(title, description) {
+    const embed = new EmbedBuilder()
+        .setTitle(title)
+        .setDescription(description)
+        .setColor('#4B6BF5')
+        .setFooter({ text: `${BOT_NAME} • Comando prefixado: ${COMMAND_PREFIX}<comando>` });
+    embed.setAuthor({ name: BOT_NAME, iconURL: 'https://i.imgur.com/4M34hi2.png' });
+    return embed;
+}
+
+function createCommandEmbed() {
+    return new EmbedBuilder()
+        .setColor('#4B6BF5')
+        .setAuthor({ name: BOT_NAME, iconURL: 'https://i.imgur.com/4M34hi2.png' })
+        .setFooter({ text: `${BOT_NAME} • prefixo ${COMMAND_PREFIX}` });
+}
 
 discordClient.once('ready', async () => {
     console.log(`✅ Bot Discord online como ${discordClient.user.tag}`);
@@ -2740,6 +2831,145 @@ discordClient.on('shardError', (error) => {
 
 discordClient.on('disconnect', () => {
     console.warn('Bot Discord desconectado.');
+});
+
+discordClient.on('messageCreate', async (message) => {
+    if (message.author.bot) return;
+    if (!message.content.startsWith(COMMAND_PREFIX)) return;
+
+    const args = message.content.slice(COMMAND_PREFIX.length).trim().split(/\s+/);
+    const command = args.shift().toLowerCase();
+
+    switch (command) {
+        case 'ajuda': {
+            const embed = createCommandEmbed()
+                .setTitle('📘 Comandos do Prikito')
+                .addFields(
+                    { name: `${COMMAND_PREFIX}login`, value: 'Abre instruções de login e autenticação.', inline: false },
+                    { name: `${COMMAND_PREFIX}ajuda`, value: 'Mostra esta lista de comandos importantes.', inline: false },
+                    { name: `${COMMAND_PREFIX}perfil`, value: 'Mostra seu perfil de jogo e status.', inline: false },
+                    { name: `${COMMAND_PREFIX}rank`, value: 'Exibe o ranking dos top jogadores.', inline: false },
+                    { name: `${COMMAND_PREFIX}gems`, value: 'Mostra sua quantidade de gems.', inline: false },
+                    { name: `${COMMAND_PREFIX}shop`, value: 'Lista itens disponíveis para compra.', inline: false },
+                    { name: `${COMMAND_PREFIX}buy <item>`, value: 'Compra um cargo da loja.', inline: false },
+                    { name: `${COMMAND_PREFIX}help <comando>`, value: 'Mostra ajuda detalhada sobre um comando.', inline: false },
+                    { name: `${COMMAND_PREFIX}ping`, value: 'Testa a latência do bot.', inline: false }
+                );
+            return message.reply({ embeds: [embed] });
+        }
+        case 'login': {
+            const embed = createPrikitoEmbed('🔐 Login do Prikito', 'Para se autenticar no jogo, use o comando slash `/login` no Discord ou siga as instruções abaixo.');
+            embed.addFields(
+                { name: 'Passo 1', value: 'Digite `/login` no seu servidor Discord.' },
+                { name: 'Passo 2', value: 'Preencha seu usuário e senha do Infestation no modal.' },
+                { name: 'Passo 3', value: 'Receba o cargo de verificado automaticamente.' }
+            );
+            return message.reply({ embeds: [embed] });
+        }
+        case 'perfil': {
+            const username = args[0] ? args[0].replace('@', '').replace(/[^a-zA-Z0-9_]/g, '') : message.author.username;
+            const profile = users[username] || users[message.author.username];
+            const embed = createPrikitoEmbed('👤 Perfil de Jogo', `Mostrando informações para **${username}**.`);
+            if (!profile) {
+                embed.setDescription('Nenhum perfil encontrado. Faça login no jogo primeiro.');
+                return message.reply({ embeds: [embed] });
+            }
+            embed.addFields(
+                { name: 'Usuário', value: profile.username || username, inline: true },
+                { name: 'ID', value: profile.id || 'Não disponível', inline: true },
+                { name: 'Cor', value: profile.color || 'Não definido', inline: true },
+                { name: 'Gems', value: `${profile.gems || 0}`, inline: true },
+                { name: 'Friends', value: `${profile.friends?.length || 0}`, inline: true },
+                { name: 'Pedidos', value: `${profile.requests?.length || 0}`, inline: true }
+            );
+            return message.reply({ embeds: [embed] });
+        }
+        case 'rank': {
+            const sortedUsers = Object.values(users).sort((a, b) => (b.gems || 0) - (a.gems || 0)).slice(0, 10);
+            const embed = createPrikitoEmbed('🏆 Ranking de Jogadores', 'Top 10 jogadores por gems.');
+            sortedUsers.forEach((user, index) => {
+                embed.addFields({ name: `${index + 1}. ${user.username}`, value: `${user.gems || 0} gems`, inline: true });
+            });
+            return message.reply({ embeds: [embed] });
+        }
+        case 'gems': {
+            const username = message.author.username;
+            const profile = users[username];
+            const gems = profile ? (profile.gems || 0) : 0;
+            const embed = createPrikitoEmbed('💎 Suas Gems', `Você tem **${gems}** gems.`);
+            return message.reply({ embeds: [embed] });
+        }
+        case 'shop': {
+            const embed = createPrikitoEmbed('🛒 Loja de Cargos', 'Itens disponíveis para compra com gems.');
+            SHOP_ITEMS.forEach(item => {
+                embed.addFields({ name: `${item.name} - ${item.price} gems`, value: item.description, inline: false });
+            });
+            embed.addFields({ name: 'Como comprar', value: `Use ${COMMAND_PREFIX}buy <nome do cargo> para adquirir.`, inline: false });
+            return message.reply({ embeds: [embed] });
+        }
+        case 'buy': {
+            const itemName = args.join(' ').toLowerCase();
+            const item = SHOP_ITEMS.find(i => i.name.toLowerCase() === itemName);
+            if (!item) {
+                const embed = createPrikitoEmbed('❌ Item não encontrado', `Use ${COMMAND_PREFIX}shop para ver itens disponíveis.`);
+                return message.reply({ embeds: [embed] });
+            }
+            const username = message.author.username;
+            const profile = users[username];
+            if (!profile) {
+                const embed = createPrikitoEmbed('❌ Perfil não encontrado', 'Faça login primeiro.');
+                return message.reply({ embeds: [embed] });
+            }
+            const gems = profile.gems || 0;
+            if (gems < item.price) {
+                const embed = createPrikitoEmbed('❌ Gems insuficientes', `Você tem ${gems} gems, precisa de ${item.price}.`);
+                return message.reply({ embeds: [embed] });
+            }
+            // Deduzir gems
+            profile.gems -= item.price;
+            saveAllUsers();
+            // Adicionar cargo
+            try {
+                const member = await message.guild.members.fetch(message.author.id);
+                await member.roles.add(item.roleId);
+                const embed = createPrikitoEmbed('✅ Compra realizada', `Você comprou **${item.name}** por ${item.price} gems!`);
+                return message.reply({ embeds: [embed] });
+            } catch (error) {
+                console.error('Erro ao adicionar cargo:', error);
+                const embed = createPrikitoEmbed('❌ Erro', 'Não foi possível adicionar o cargo. Contate um admin.');
+                return message.reply({ embeds: [embed] });
+            }
+        }
+        case 'help': {
+            const cmd = args[0];
+            if (!cmd) {
+                const embed = createPrikitoEmbed('❓ Ajuda', `Use ${COMMAND_PREFIX}help <comando> para detalhes.`);
+                return message.reply({ embeds: [embed] });
+            }
+            let description = '';
+            switch (cmd.toLowerCase()) {
+                case 'login': description = 'Abre modal para login no jogo.'; break;
+                case 'perfil': description = 'Mostra perfil do usuário.'; break;
+                case 'rank': description = 'Ranking por gems.'; break;
+                case 'gems': description = 'Quantidade de gems.'; break;
+                case 'shop': description = 'Lista itens da loja.'; break;
+                case 'buy': description = 'Compra um item: p.buy <nome>'; break;
+                case 'ping': description = 'Latência do bot.'; break;
+                default: description = 'Comando não encontrado.';
+            }
+            const embed = createPrikitoEmbed(`📖 Ajuda: ${cmd}`, description);
+            return message.reply({ embeds: [embed] });
+        }
+        case 'ping': {
+            const sent = await message.reply('Pinging...');
+            const embed = createPrikitoEmbed('🏓 Pong!', `Latência: ${sent.createdTimestamp - message.createdTimestamp}ms`);
+            return sent.edit({ embeds: [embed] });
+        }
+        default: {
+            const embed = createPrikitoEmbed('❓ Comando não reconhecido', `Use ${COMMAND_PREFIX}ajuda para ver os comandos disponíveis.`);
+            return message.reply({ embeds: [embed] });
+        }
+    }
 });
 
 discordClient.on('interactionCreate', async (interaction) => {
@@ -2798,25 +3028,6 @@ discordClient.on('interactionCreate', async (interaction) => {
         // ================================================
         // BENEFÍCIOS — A OUTRA IA VAI PREENCHER AQUI
         // ================================================
-    }
-        // ========== COMANDO /PEGAR (alternativa ao botão) ==========
-    if (interaction.isChatInputCommand() && interaction.commandName === 'pegar') {
-        const member = await interaction.guild.members.fetch(interaction.user.id);
-        if (!member.roles.cache.has(STAFF_ROLE_ID)) {
-            return interaction.reply({ content: '❌ Apenas staff pode usar este comando!', ephemeral: true });
-        }
-
-        if (ticketQueue.length === 0) {
-            return interaction.reply({ content: '❌ Não há tickets na fila!', ephemeral: true });
-        }
-
-        const nextTicketId = ticketQueue[0];
-        const channel = await interaction.guild.channels.fetch(nextTicketId);
-
-        await interaction.reply({ 
-            content: `✅ Vá para ${channel} e clique em "Pegar Ticket"`, 
-            ephemeral: true 
-        });
     }
       if (interaction.isChatInputCommand() && interaction.commandName === 'ajuda') {
         const embed = new EmbedBuilder()

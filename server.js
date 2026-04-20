@@ -99,15 +99,21 @@ async function loadGameState() {
 }
 
 async function saveAllUsers() {
-    await saveToFirebase('gameData', 'users', users);
+    const verifiedUsersObj = Object.fromEntries(verifiedUsers);
+    await saveToFirebase('gameData', 'users', { users, verifiedUsers: verifiedUsersObj });
     saveUsers(); // Local
 }
 
 async function loadAllUsers() {
     const data = await loadFromFirebase('gameData', 'users');
     if (data) {
-        Object.assign(users, data);
-        console.log('Users carregados do Firebase.');
+        if (data.users) Object.assign(users, data.users);
+        if (data.verifiedUsers) {
+            for (const [key, value] of Object.entries(data.verifiedUsers)) {
+                verifiedUsers.set(key, value);
+            }
+        }
+        console.log('Users e verifiedUsers carregados do Firebase.');
     }
 }
 
@@ -2798,16 +2804,14 @@ function createPrikitoEmbed(title, description) {
         .setTitle(title)
         .setDescription(description)
         .setColor('#4B6BF5')
-        .setFooter({ text: `${BOT_NAME} • Comando prefixado: ${COMMAND_PREFIX}<comando>` });
-    embed.setAuthor({ name: BOT_NAME, iconURL: 'https://i.imgur.com/4M34hi2.png' });
+        .setFooter({ text: `Comando prefixado: ${COMMAND_PREFIX}<comando>` });
     return embed;
 }
 
 function createCommandEmbed() {
     return new EmbedBuilder()
         .setColor('#4B6BF5')
-        .setAuthor({ name: BOT_NAME, iconURL: 'https://i.imgur.com/4M34hi2.png' })
-        .setFooter({ text: `${BOT_NAME} • prefixo ${COMMAND_PREFIX}` });
+        .setFooter({ text: `Prefixo: ${COMMAND_PREFIX}` });
 }
 
 discordClient.once('ready', async () => {
@@ -2871,15 +2875,19 @@ discordClient.on('messageCreate', async (message) => {
             return message.reply({ embeds: [embed] });
         }
         case 'perfil': {
-            const username = args[0] ? args[0].replace('@', '').replace(/[^a-zA-Z0-9_]/g, '') : message.author.username;
-            const profile = users[username] || users[message.author.username];
-            const embed = createPrikitoEmbed('👤 Perfil de Jogo', `Mostrando informações para **${username}**.`);
+            const verifiedUsername = verifiedUsers.get(message.author.id);
+            if (!verifiedUsername) {
+                const embed = createPrikitoEmbed('👤 Perfil de Jogo', 'Você não está logado. Use `/login` primeiro.');
+                return message.reply({ embeds: [embed] });
+            }
+            const profile = users[verifiedUsername];
+            const embed = createPrikitoEmbed('👤 Perfil de Jogo', `Mostrando informações para **${verifiedUsername}**.`);
             if (!profile) {
-                embed.setDescription('Nenhum perfil encontrado. Faça login no jogo primeiro.');
+                embed.setDescription('Perfil não encontrado no jogo.');
                 return message.reply({ embeds: [embed] });
             }
             embed.addFields(
-                { name: 'Usuário', value: profile.username || username, inline: true },
+                { name: 'Usuário', value: profile.username || verifiedUsername, inline: true },
                 { name: 'ID', value: profile.id || 'Não disponível', inline: true },
                 { name: 'Cor', value: profile.color || 'Não definido', inline: true },
                 { name: 'Gems', value: `${profile.gems || 0}`, inline: true },
@@ -3017,6 +3025,7 @@ discordClient.on('interactionCreate', async (interaction) => {
         }
 
         verifiedUsers.set(interaction.user.id, username);
+        await saveAllUsers();
 
         try {
             const member = await interaction.guild.members.fetch(interaction.user.id);

@@ -2765,16 +2765,15 @@ setInterval(async () => {
 const BOT_NAME = 'Prikito';
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const VERIFIED_ROLE_ID = '1495809256488702112';
-const COMMAND_PREFIX = 'p.';
+const COMMAND_PREFIX = 'i.';
 
 console.log('BOT_TOKEN definido:', !!BOT_TOKEN);
 console.log('VERIFIED_ROLE_ID definido:', VERIFIED_ROLE_ID);
 
 // Loja de Cargos
 const SHOP_ITEMS = [
-    { name: 'VIP', price: 500, roleId: '1495809256488702113', description: 'Acesso a canais VIP e benefícios exclusivos.' },
-    { name: 'Premium', price: 1000, roleId: '1495809256488702114', description: 'Cargos premium com perks avançados.' },
-    { name: 'Elite', price: 2000, roleId: '1495809256488702115', description: 'Status elite com vantagens máximas.' }
+    { name: 'VIP', price: 500, roleId: '1495883287527292988', description: 'Acesso a canais VIP e benefícios exclusivos.  ID para compra: 1495883287527292988' },
+    { name: 'Premium', price: 1000, roleId: '1495883596483924070', description: 'Cargos premium com perks avançados.  ID para compra: 1495883596483924070' },}
 ];
 
 // Inicializar Firebase
@@ -3016,31 +3015,36 @@ discordClient.on('interactionCreate', async (interaction) => {
     if (interaction.type === InteractionType.ModalSubmit && interaction.customId === 'loginModal') {
         await interaction.deferReply({ ephemeral: true });
 
-        const username = interaction.fields.getTextInputValue('username').trim();
-        const password = interaction.fields.getTextInputValue('password').trim();
-
-        // Usa direto o objeto 'users' que já existe no server.js
-        if (!users[username] || users[username].password !== password) {
-            return interaction.editReply({ content: '❌ Usuário ou senha incorretos!' });
-        }
-
-        verifiedUsers.set(interaction.user.id, username);
-        await saveAllUsers();
-
         try {
-            const member = await interaction.guild.members.fetch(interaction.user.id);
-            await member.roles.add(VERIFIED_ROLE_ID);
-        } catch (err) {
-            console.error('Erro ao adicionar cargo:', err);
+            const username = interaction.fields.getTextInputValue('username').trim();
+            const password = interaction.fields.getTextInputValue('password').trim();
+
+            // Usa direto o objeto 'users' que já existe no server.js
+            if (!users[username] || users[username].password !== password) {
+                return await interaction.editReply({ content: '❌ Usuário ou senha incorretos!' });
+            }
+
+            verifiedUsers.set(interaction.user.id, username);
+            await saveAllUsers();
+
+            try {
+                const member = await interaction.guild.members.fetch(interaction.user.id);
+                await member.roles.add(VERIFIED_ROLE_ID);
+            } catch (err) {
+                console.error('Erro ao adicionar cargo:', err);
+            }
+
+            await interaction.editReply({
+                content: `✅ Login realizado! Bem-vindo, **${username}**!\n\n🎮 Sua conta do Infestation foi vinculada ao Discord.`
+            });
+        } catch (error) {
+            console.error('Erro no login modal:', error);
+            try {
+                await interaction.editReply({ content: '❌ Erro ao processar login. Tente novamente.' });
+            } catch (e) {
+                console.error('Erro ao responder interaction:', e);
+            }
         }
-
-        await interaction.editReply({
-            content: `✅ Login realizado! Bem-vindo, **${username}**!\n\n🎮 Sua conta do Infestation foi vinculada ao Discord.`
-        });
-
-        // ================================================
-        // BENEFÍCIOS — A OUTRA IA VAI PREENCHER AQUI
-        // ================================================
     }
       if (interaction.isChatInputCommand() && interaction.commandName === 'ajuda') {
         const embed = new EmbedBuilder()

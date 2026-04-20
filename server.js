@@ -2743,6 +2743,10 @@ server.listen(PORT, async () => {
     await loadGameState();
     initializeGame();
     console.log(`🚀 Game server running at http://localhost:${PORT}`);
+    // Salvar gameState no Firebase a cada 5 minutos
+setInterval(async () => {
+    await saveGameState();
+}, 5 * 60 * 1000);
 
     // Adicione após o server.listen:
 setInterval(async () => {

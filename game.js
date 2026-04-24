@@ -34,7 +34,7 @@ function loadImage(src) {
     return img;
 }
 
-const human = loadImage('Sprites/Human.png');
+const human = loadImage('Sprites/humano.png');
 const zombie = loadImage('Sprites/Zombie.png');
 const box = loadImage('Sprites/Box.png');
 const grass = loadImage('Sprites/Grass.png');

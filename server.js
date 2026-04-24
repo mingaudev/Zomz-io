@@ -1732,25 +1732,28 @@ socket.on("login", ({
     username,
     password
 }) => {
-    if (!users[username] || users[username].password !== password)
-        return socket.emit("loginError", "Usuário ou senha incorretos!");
+    const trimmedUsername = username.trim();
+    const userKey = Object.keys(users).find(key => key.toLowerCase() === trimmedUsername.toLowerCase());
+    if (!userKey) {
+        return socket.emit("loginError", "Usuário não encontrado!");
+    }
 
     // Detecta conta duplicada e remove física da segunda
-   const oldSocketId = sockets[username];
-if (oldSocketId && oldSocketId !== socket.id) {
-    return socket.emit("loginError", "Essa conta já está logada em outro lugar!");
-}
+    const oldSocketId = sockets[userKey];
+    if (oldSocketId && oldSocketId !== socket.id) {
+        return socket.emit("loginError", "Essa conta já está logada em outro lugar!");
+    }
 
-    socket.username = username;
-    sockets[username] = socket.id;
-    if (!messages[username]) messages[username] = {};
-    socket.emit("loginSuccess", users[username]);
+    socket.username = userKey;
+    sockets[userKey] = socket.id;
+    if (!messages[userKey]) messages[userKey] = {};
+    socket.emit("loginSuccess", users[userKey]);
 
     const player = gameState.players[socket.id];
     if (player) {
-        player.name = username;
-        player.isDev = DEV_USERNAMES.includes(username);
-        player.isArtist = ARTIST_USERNAMES.includes(username);
+        player.name = userKey;
+        player.isDev = DEV_USERNAMES.includes(userKey);
+        player.isArtist = ARTIST_USERNAMES.includes(userKey);
     }
 });
 
@@ -2770,12 +2773,6 @@ const COMMAND_PREFIX = 'i.';
 console.log('BOT_TOKEN definido:', !!BOT_TOKEN);
 console.log('VERIFIED_ROLE_ID definido:', VERIFIED_ROLE_ID);
 
-// Loja de Cargos
-const SHOP_ITEMS = [
-    { name: 'VIP', price: 500, roleId: '1495883287527292988', description: 'Acesso a canais VIP e benefícios exclusivos.  ID para compra: 1495883287527292988' },
-    { name: 'Premium', price: 1000, roleId: '1495883596483924070', description: 'Cargos premium com perks avançados.  ID para compra: 1495883596483924070' }
-];
-
 // Inicializar Firebase
 if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
     const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
@@ -3028,11 +3025,12 @@ discordClient.on('interactionCreate', async (interaction) => {
             const password = interaction.fields.getTextInputValue('password').trim();
 
             // Usa direto o objeto 'users' que já existe no server.js
-            if (!users[username] || users[username].password !== password) {
-                return await interaction.editReply({ content: '❌ Usuário ou senha incorretos!' });
+            const userKey = Object.keys(users).find(key => key.toLowerCase() === username.toLowerCase());
+            if (!userKey) {
+                return await interaction.editReply({ content: '❌ Usuário não encontrado!' });
             }
 
-            verifiedUsers.set(interaction.user.id, username);
+            verifiedUsers.set(interaction.user.id, userKey);
             await saveAllUsers();
 
             try {
@@ -3043,7 +3041,7 @@ discordClient.on('interactionCreate', async (interaction) => {
             }
 
             await interaction.editReply({
-                content: `✅ Login realizado! Bem-vindo, **${username}**!\n\n🎮 Sua conta do Infestation foi vinculada ao Discord.`
+                content: `✅ Login realizado! Bem-vindo, **${userKey}**!\n\n🎮 Sua conta do Infestation foi vinculada ao Discord.`
             });
         } catch (error) {
             console.error('Erro no login modal:', error);

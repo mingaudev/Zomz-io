@@ -51,6 +51,17 @@ function saveUsers() {
     });
 }
 
+function updateUserStatsAfterRound(humansSurvived) {
+    for (const player of Object.values(gameState.players)) {
+        if (!player.name || !users[player.name]) continue;
+        const profile = users[player.name];
+        profile.gems = Math.max(0, Math.round(player.gems || 0));
+        if (humansSurvived && player.role === 'human') {
+            profile.matchesSurvived = (profile.matchesSurvived || 0) + 1;
+        }
+    }
+}
+
 function saveMessages() {
     fs.writeJsonSync(MESSAGES_FILE, messages, {
         spaces: 2
@@ -1695,40 +1706,50 @@ function setupCollisionEvents() {
     });
 }
 
+
 io.on('connection', (socket) => {
     console.log(`[SERVIDOR] Conexão recebida. ID do Socket: ${socket.id}`);
 
     createNewPlayer(socket);
 
-    socket.on("register", ({ username, password }) => {
-    if (users[username]) return socket.emit("registerError", "Usuário já existe!");
-    
-    const id = generateID();
-    users[username] = {
-        id,
-        username,
-        password,
-        color: "#3498db",
-        photo: null,
-        editedName: false,
-        friends: [],
-        requests: []
-    };
-    saveUsers();
-    socket.emit("registerSuccess", users[username]);
+        socket.on("register", ({ username, password }) => {
+        if (users[username]) return socket.emit("registerError", "Usuário já existe!");
+        
+        const id = generateID();
+        users[username] = {
+            id,
+            username,
+            password,
+            color: "#3498db",
+            photo: null,
+            editedName: false,
+            friends: [],
+            requests: [],
+            gems: 0,
+            kills: 0,
+            matchesSurvived: 0
+        };
+        saveUsers();
+        socket.emit("registerSuccess", users[username]);
 
-    // Envia email pra você
-    transporter.sendMail({
-        from: 'enzosantiagosrv1245@gmail.com',
-        to: 'enzosantiagosrv1245@gmail.com',
-        subject: '🎮 Nova conta criada - Infestation',
-        text: `Nova conta criada!\n\nUsuário: ${username}\nSenha: ${password}\nID: ${id}\n\nAdicione no users.json do GitHub para salvar permanentemente.`
-    }, (err) => {
-        if (err) console.log('Erro ao enviar email:', err);
+        // Envia email pra você
+        transporter.sendMail({
+            from: 'enzosantiagosrv1245@gmail.com',
+            to: 'enzosantiagosrv1245@gmail.com',
+            subject: '🎮 Nova conta criada - Infestation',
+            text: `Nova conta criada!
+
+Usuário: ${username}
+Senha: ${password}
+ID: ${id}
+
+Adicione no users.json do GitHub para salvar permanentemente.`
+        }, (err) => {
+            if (err) console.log('Erro ao enviar email:', err);
+        });
     });
-});
 
-socket.on("login", ({
+    socket.on("login", ({
     username,
     password
 }) => {
@@ -2896,7 +2917,11 @@ discordClient.on('messageCreate', async (message) => {
             const sortedUsers = Object.values(users).sort((a, b) => (b.gems || 0) - (a.gems || 0)).slice(0, 10);
             const embed = createPrikitoEmbed('🏆 Ranking de Jogadores', 'Top 10 jogadores por gems.');
             sortedUsers.forEach((user, index) => {
-                embed.addFields({ name: `${index + 1}. ${user.username}`, value: `${user.gems || 0} gems`, inline: true });
+                embed.addFields({
+                    name: `${index + 1}. ${user.username}`,
+                    value: `💎 Gems: ${user.gems || 0}\n⚔️ Kills: ${user.kills || 0}\n🛡️ Partidas sobrevividas: ${user.matchesSurvived || 0}`,
+                    inline: false
+                });
             });
             return message.reply({ embeds: [embed] });
         }

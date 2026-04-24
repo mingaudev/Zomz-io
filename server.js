@@ -3024,20 +3024,23 @@ discordClient.on('interactionCreate', async (interaction) => {
             const username = interaction.fields.getTextInputValue('username').trim();
             const password = interaction.fields.getTextInputValue('password').trim();
 
-            // Usa direto o objeto 'users' que já existe no server.js
             const userKey = Object.keys(users).find(key => key.toLowerCase() === username.toLowerCase());
-            if (!userKey) {
-                return await interaction.editReply({ content: '❌ Usuário não encontrado!' });
+            if (!userKey || users[userKey].password !== password) {
+                return await interaction.editReply({ content: '❌ Usuário ou senha incorretos!' });
             }
 
             verifiedUsers.set(interaction.user.id, userKey);
             await saveAllUsers();
 
-            try {
-                const member = await interaction.guild.members.fetch(interaction.user.id);
-                await member.roles.add(VERIFIED_ROLE_ID);
-            } catch (err) {
-                console.error('Erro ao adicionar cargo:', err);
+            if (interaction.guild) {
+                try {
+                    const member = await interaction.guild.members.fetch(interaction.user.id);
+                    await member.roles.add(VERIFIED_ROLE_ID);
+                } catch (err) {
+                    console.error('Erro ao adicionar cargo:', err);
+                }
+            } else {
+                console.warn('Login via /login sem guilda; cargo não será adicionado.');
             }
 
             await interaction.editReply({
@@ -3046,7 +3049,7 @@ discordClient.on('interactionCreate', async (interaction) => {
         } catch (error) {
             console.error('Erro no login modal:', error);
             try {
-                await interaction.editReply({ content: '❌ Erro ao processar login. Tente novamente.' });
+                await interaction.editReply({ content: `❌ Erro ao processar login. Tente novamente. (${error.message || 'erro interno'})` });
             } catch (e) {
                 console.error('Erro ao responder interaction:', e);
             }

@@ -2767,7 +2767,7 @@ setInterval(async () => {
 // ✅ CORRETO:
 const BOT_NAME = 'Prikito';
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const VERIFIED_ROLE_ID = '1495809256488702112';
+const VERIFIED_ROLE_ID = '1497292034287865926';
 const COMMAND_PREFIX = 'i.';
 
 console.log('BOT_TOKEN definido:', !!BOT_TOKEN);

@@ -40,6 +40,7 @@ let users = {};
 let sockets = {};
 let messages = {};
 let links = [];
+const verifiedUsers = new Map();
 
 if (fs.existsSync(USERS_FILE)) users = fs.readJsonSync(USERS_FILE);
 if (fs.existsSync(MESSAGES_FILE)) messages = fs.readJsonSync(MESSAGES_FILE);
@@ -2814,7 +2815,6 @@ const discordClient = new Client({
         GatewayIntentBits.GuildVoiceStates
     ] 
 });
-const verifiedUsers = new Map();
 
 function createPrikitoEmbed(title, description) {
     const embed = new EmbedBuilder()
